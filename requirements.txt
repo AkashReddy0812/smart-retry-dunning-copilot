@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+celery
+redis
+sqlalchemy
+pandas
+numpy
+scikit-learn
+xgboost
+python-dotenv
+jinja2

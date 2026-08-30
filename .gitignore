@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+
+# Model artifacts (regenerate via train_model.py if large)
+ml/model.pkl
+
+# OS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Large data files (uncomment if CSVs grow too large to commit; keep committed if small)
+# data/transactions.csv
+# data/retry_attempts.csv
