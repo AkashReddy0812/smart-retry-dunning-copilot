@@ -1,0 +1,17 @@
+{
+    "total_transactions": 228,
+    "naive": {
+        "recovery_rate_pct": 57.89,
+        "revenue_recovered_inr": 146001.88
+    },
+    "smart": {
+        "recovery_rate_pct": 69.74,
+        "revenue_recovered_inr": 164112.09,
+        "skipped_non_retryable": 0
+    },
+    "improvement": {
+        "recovery_rate_pp": 11.84,
+        "revenue_lift_pct": 12.4,
+        "revenue_diff_inr": 18110.21
+    }
+}
