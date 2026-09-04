@@ -1,25 +1,42 @@
-# Placeholder — finalized on Day 3 (Sep 1) / polished Day 5 (Sep 3)
-# Services: redis, api (FastAPI), worker (Celery)
-#
-# version: "3.9"
-# services:
-#   redis:
-#     image: redis:7-alpine
-#     ports:
-#       - "6379:6379"
-#
-#   api:
-#     build: .
-#     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-#     ports:
-#       - "8000:8000"
-#     depends_on:
-#       - redis
-#     env_file: .env
-#
-#   worker:
-#     build: .
-#     command: celery -A app.celery_app worker --loglevel=info
-#     depends_on:
-#       - redis
-#     env_file: .env
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      # Mount local directory to /app for live code reloading
+      # and sharing the SQLite database (app.db)
+      - .:/app
+
+  worker:
+    build: .
+    # Note: On Linux/Docker, Celery doesn't need --pool=solo. Standard worker is fine.
+    command: celery -A app.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      # Mount local directory to share code and the SQLite database
+      - .:/app
+
+volumes:
+  redis_data:
