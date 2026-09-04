@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     fetchSummary();
     fetchComparison();
+    fetchEfficiency();
     fetchQueue();
 
     document.getElementById('refresh-queue').addEventListener('click', fetchQueue);
@@ -81,10 +82,38 @@ async function fetchComparison() {
     }
 }
 
+async function fetchEfficiency() {
+    try {
+        const response = await fetch('/dashboard/efficiency');
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        // Update the main stat
+        const mainStat = document.getElementById('wasted-avoided');
+        mainStat.innerText = `${data.smart_retries_avoided.toLocaleString()} wasted retry attempts avoided`;
+        
+        // Update the subtext
+        const total = data.retryable_count + data.non_retryable_count;
+        const subtext = document.getElementById('efficiency-subtext');
+        subtext.innerText = `${data.non_retryable_count.toLocaleString()} failures (${total.toLocaleString()} total) were correctly identified as non-retryable and skipped entirely, instead of being blindly retried 3 times each.`;
+        
+        // Populate the breakdown list
+        const ul = document.getElementById('breakdown-list');
+        ul.innerHTML = '';
+        for (const [reason, count] of Object.entries(data.non_retryable_breakdown)) {
+            // format reason string (e.g., "card_expired" -> "Card Expired")
+            const formattedReason = reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            ul.innerHTML += `<li><strong>${formattedReason}:</strong> ${count.toLocaleString()}</li>`;
+        }
+    } catch (err) {
+        console.error("Error fetching efficiency data:", err);
+    }
+}
+
 async function fetchQueue() {
     const tbody = document.getElementById('queue-body');
     try {
-        // Absolute path from server root (matches the prefix in app/routers/dashboard.py)
+        // Absolute path from server root
         const response = await fetch('/dashboard/queue/live');
         const data = await response.json();
         

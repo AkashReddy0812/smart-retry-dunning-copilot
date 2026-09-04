@@ -3,7 +3,8 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-
+import csv
+import os
 from app.db import get_db
 from app.models import Transaction, RetryAttempt
 
@@ -63,3 +64,51 @@ def get_live_queue(db: Session = Depends(get_db)):
         }
         for retry, tx in pending_retries
     ]
+
+@router.get("/efficiency")
+def get_retry_efficiency():
+    # Resolve absolute path to data/transactions.csv
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    csv_path = os.path.join(base_dir, "data", "transactions.csv")
+    
+    if not os.path.exists(csv_path):
+        raise HTTPException(
+            status_code=404, 
+            detail="transactions.csv not found in the data/ directory."
+        )
+        
+    total_failed = 0
+    non_retryable_count = 0
+    retryable_count = 0
+    breakdown = {}
+    
+    with open(csv_path, mode='r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Check status (handling both 'initial_status' and 'status' column naming variations)
+            status = row.get("initial_status", row.get("status", ""))
+            
+            if status == "failed":
+                total_failed += 1
+                
+                # Check is_retryable flag (parse string from CSV)
+                is_retryable_str = str(row.get("is_retryable", "true")).strip().lower()
+                is_retryable = is_retryable_str not in ("false", "0", "")
+                
+                if not is_retryable:
+                    non_retryable_count += 1
+                    reason = row.get("failure_reason", "unknown")
+                    breakdown[reason] = breakdown.get(reason, 0) + 1
+                else:
+                    retryable_count += 1
+                    
+    naive_wasted_attempts = non_retryable_count * 3
+    
+    return {
+        "total_failed": total_failed,
+        "non_retryable_count": non_retryable_count,
+        "retryable_count": retryable_count,
+        "naive_wasted_attempts": naive_wasted_attempts,
+        "smart_retries_avoided": naive_wasted_attempts,
+        "non_retryable_breakdown": breakdown
+    }
