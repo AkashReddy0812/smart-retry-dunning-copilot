@@ -13,6 +13,18 @@
             <h1>Recovery Strategy Dashboard</h1>
         </header>
 
+        <section class="card">
+            <h2>Simulate New Failure</h2>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+                <button id="btn-sim-funds" class="btn btn-primary">Simulate: Insufficient Funds</button>
+                <button id="btn-sim-timeout" class="btn btn-primary">Simulate: Bank Timeout</button>
+                <button id="btn-sim-upi" class="btn btn-primary">Simulate: Invalid UPI PIN</button>
+                <button id="btn-sim-expired" class="btn">Simulate: Card Expired (non-retryable)</button>
+            </div>
+            <!-- Toast message container -->
+            <div id="sim-status" class="text-success" style="font-weight: 500; min-height: 24px; opacity: 0; transition: opacity 0.3s ease;"></div>
+        </section>
+
         <!-- SECTION 1: HEADLINE COMPARISON -->
         <section class="card">
             <h2>Baseline vs. ML Strategy</h2>
@@ -73,6 +85,13 @@
                         <!-- Injected via JS -->
                     </div>
                 </div>
+                <div class="explain-container" id="tx-explain-container" style="display: none;">
+                    <h3>Why this retry time? <small>(ML Decision Drivers)</small></h3>
+                    <div id="tx-explain-bars" class="shap-list">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+            
             </div>
         </section>
         <!--  NEW SECTION -->

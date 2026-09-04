@@ -275,3 +275,73 @@ th { background: #f9fafb; color: var(--text-muted); }
     border-bottom: none;
     padding-bottom: 0;
 }
+
+/* --- SHAP Explanations --- */
+.explain-container {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.explain-container h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.explain-container h3 small {
+    color: var(--text-muted);
+    font-weight: normal;
+    font-size: 0.8rem;
+}
+
+.shap-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.shap-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.shap-label {
+    width: 220px;
+    font-size: 0.85rem;
+    color: #475569;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+}
+
+.shap-track {
+    flex: 1;
+    background: #e2e8f0;
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.shap-bar {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease;
+}
+
+.shap-bar-pos {
+    background: var(--success);
+}
+
+.shap-bar-neg {
+    background: var(--danger);
+}

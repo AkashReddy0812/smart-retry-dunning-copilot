@@ -1,14 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-
-# Database URL for SQLite at the project root
-SQLALCHEMY_DATABASE_URL = "sqlite:///./app.db"
-
-# connect_args={"check_same_thread": False} is required for SQLite in FastAPI
-# because FastAPI can access the database from different worker threads.
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+import os
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

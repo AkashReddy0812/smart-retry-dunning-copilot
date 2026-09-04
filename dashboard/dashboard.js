@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const txId = document.getElementById('tx-input').value.trim();
         if (txId) fetchTransaction(txId);
     });
+    document.getElementById('btn-sim-funds').addEventListener('click', () => runSimulation('funds'));
+    document.getElementById('btn-sim-timeout').addEventListener('click', () => runSimulation('timeout'));
+    document.getElementById('btn-sim-upi').addEventListener('click', () => runSimulation('upi'));
+    document.getElementById('btn-sim-expired').addEventListener('click', () => runSimulation('expired'));
 });
 
 // Chart defaults
@@ -212,8 +216,173 @@ async function fetchTransaction(txId) {
         `).join('');
 
         resultDiv.classList.remove('hidden');
+        fetchExplain(txId);
     } catch (err) {
         console.error(err);
         alert("Error loading transaction data.");
+    }
+}
+
+// Clean up model feature names for the UI
+function formatFeatureName(rawName) {
+    const mappings = {
+        'is_near_month_boundary': 'Near month boundary (payday proximity)',
+        'hours_since_original_failure': 'Hours since original failure',
+        'attempt_number': 'Retry attempt number',
+        'amount_inr': 'Transaction Amount (₹)',
+        'retry_day_of_month': 'Day of the month'
+    };
+    
+    if (mappings[rawName]) return mappings[rawName];
+    
+    // Fallback for one-hot encoded features like "failure_reason_insufficient_funds"
+    if (rawName.startsWith('failure_reason_')) {
+        return 'Failure: ' + rawName.replace('failure_reason_', '').replace(/_/g, ' ');
+    }
+    if (rawName.startsWith('payment_method_')) {
+        return 'Method: ' + rawName.replace('payment_method_', '').toUpperCase();
+    }
+    if (rawName.startsWith('issuing_bank_')) {
+        return 'Bank: ' + rawName.replace('issuing_bank_', '').toUpperCase();
+    }
+    
+    return rawName.replace(/_/g, ' ');
+}
+
+async function fetchExplain(txId) {
+    const container = document.getElementById('tx-explain-container');
+    const barsContainer = document.getElementById('tx-explain-bars');
+    
+    try {
+        const response = await fetch(`/transactions/${txId}/explain`);
+        if (!response.ok) {
+            container.style.display = 'none';
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        // Find max absolute value to scale the bars properly (max width = 100%)
+        const maxAbs = Math.max(...data.map(d => Math.abs(d.shap_value)));
+        
+        barsContainer.innerHTML = data.map(item => {
+            const widthPct = Math.max((Math.abs(item.shap_value) / maxAbs) * 100, 2);
+            const colorClass = item.direction === 'positive' ? 'shap-bar-pos' : 'shap-bar-neg';
+            const sign = item.direction === 'positive' ? '+' : '';
+            
+            return `
+                <div class="shap-row">
+                    <div class="shap-label">${formatFeatureName(item.feature)}</div>
+                    <div class="shap-track">
+                        <div class="shap-bar ${colorClass}" style="width: ${widthPct}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.style.display = 'block';
+    } catch (err) {
+        console.error("Error fetching explanation:", err);
+        container.style.display = 'none';
+    }
+}
+
+// --- Simulation Logic ---
+
+async function runSimulation(type) {
+    const txId = 'demo-txn-' + Date.now();
+    const nowISO = new Date().toISOString();
+    
+    // Base payload templates
+    const templates = {
+        'funds': {
+            customer_id: "demo-customer", 
+            transaction_type: "subscription_renewal", 
+            amount_inr: 999.0, 
+            payment_method: "UPI", 
+            issuing_bank: "HDFC", 
+            failure_reason: "insufficient_funds", 
+            is_retryable: true
+        },
+        'timeout': {
+            customer_id: "demo-customer", 
+            transaction_type: "one_time", 
+            amount_inr: 450.0, 
+            payment_method: "netbanking", 
+            issuing_bank: "SBI", 
+            failure_reason: "bank_server_timeout", 
+            is_retryable: true
+        },
+        'upi': {
+            customer_id: "demo-customer", 
+            transaction_type: "one_time", 
+            amount_inr: 250.0, 
+            payment_method: "UPI", 
+            issuing_bank: "AXIS", 
+            failure_reason: "invalid_upi_pin", 
+            is_retryable: true
+        },
+        'expired': {
+            customer_id: "demo-customer", 
+            transaction_type: "subscription_renewal", 
+            amount_inr: 1999.0, 
+            payment_method: "card", 
+            issuing_bank: "ICICI", 
+            failure_reason: "card_expired", 
+            is_retryable: false
+        }
+    };
+
+    const payload = {
+        transaction_id: txId,
+        original_timestamp: nowISO,
+        ...templates[type]
+    };
+
+    try {
+        const response = await fetch('/simulate/failure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error("Simulation request failed");
+
+        // 1. Show Success Message
+        const statusDiv = document.getElementById('sim-status');
+        statusDiv.innerText = `✅ Simulation triggered! Generated ID: ${txId}`;
+        statusDiv.style.opacity = '1';
+        
+        // Hide message after 5 seconds
+        setTimeout(() => { statusDiv.style.opacity = '0'; }, 5000);
+
+        // 2. Auto-refresh Queue
+        // Add a slight delay so the background Celery task has time to write the new retry to the DB
+        setTimeout(() => {
+            fetchQueue();
+            fetchSummary(); // Update the overall stats if needed
+        }, 1000);
+
+        // 3. Auto-populate Deep Dive and Look Up
+        document.getElementById('tx-input').value = txId;
+        
+        // Again, slight delay to let Celery finish scheduling
+        setTimeout(() => {
+            fetchTransaction(txId);
+            // Scroll down to the result so the user sees it immediately
+            document.getElementById('tx-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 1500);
+
+    } catch (err) {
+        console.error(err);
+        const statusDiv = document.getElementById('sim-status');
+        statusDiv.innerText = `❌ Error: Could not trigger simulation.`;
+        statusDiv.style.color = "var(--danger)";
+        statusDiv.style.opacity = '1';
     }
 }
