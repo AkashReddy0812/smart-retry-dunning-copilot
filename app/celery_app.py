@@ -1,6 +1,8 @@
 import os
 from celery import Celery
 from dotenv import load_dotenv
+from app.tracing import setup_tracing
+from opentelemetry.instrumentation.celery import CeleryInstrumentor
 
 # Load environment variables from a .env file if present
 load_dotenv()
@@ -22,6 +24,10 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Asia/Kolkata"
 )
+
+# Set up tracing for the Celery worker and instrument it
+setup_tracing("smart-retry-worker")
+CeleryInstrumentor().instrument()
 
 # Simple test task to verify the worker is alive
 @celery_app.task

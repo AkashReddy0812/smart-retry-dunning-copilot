@@ -13,8 +13,10 @@ from app.celery_app import celery_app
 from celery.utils.log import get_task_logger
 from app.db import SessionLocal
 from app.models import Transaction, RetryAttempt, DunningMessage
+from app.tracing import get_tracer
 
 logger = get_task_logger(__name__)
+tracer = get_tracer(__name__)
 
 # Load the ML model and features exactly as retry_policy does
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "model.pkl")
@@ -27,7 +29,6 @@ try:
 except Exception as e:
     logger.error(f"Could not load ML model from {MODEL_PATH}: {e}")
     MODEL, FEATURE_COLUMNS = None, None
-
 
 @celery_app.task(name="app.tasks.process_failed_payment")
 def process_failed_payment(transaction_id: str):
@@ -63,17 +64,23 @@ def process_failed_payment(transaction_id: str):
             return
 
         # Consult ML model for the best retry schedule
-        chosen_timestamp, chosen_prob = choose_best_retry(
-            model=MODEL,
-            feature_columns=FEATURE_COLUMNS,
-            failure_reason=transaction.failure_reason,
-            payment_method=transaction.payment_method,
-            issuing_bank=transaction.issuing_bank,
-            transaction_type=transaction.transaction_type,
-            amount_inr=transaction.amount_inr,
-            original_failure_timestamp=transaction.original_timestamp,
-            attempt_number=attempt_number
-        )
+        with tracer.start_as_current_span("ml_retry_decision") as span:
+            chosen_timestamp, chosen_prob = choose_best_retry(
+                model=MODEL,
+                feature_columns=FEATURE_COLUMNS,
+                failure_reason=transaction.failure_reason,
+                payment_method=transaction.payment_method,
+                issuing_bank=transaction.issuing_bank,
+                transaction_type=transaction.transaction_type,
+                amount_inr=transaction.amount_inr,
+                original_failure_timestamp=transaction.original_timestamp,
+                attempt_number=attempt_number
+            )
+
+            span.set_attribute("failure_reason", transaction.failure_reason)
+            span.set_attribute("chosen_retry_time", str(chosen_timestamp) if chosen_timestamp else "none")
+            span.set_attribute("predicted_probability", float(chosen_prob) if chosen_prob else 0.0)
+            span.set_attribute("is_retryable_decision", chosen_timestamp is not None)
 
         # The model can also return None if it dynamically determines the failure reason shouldn't be retried
         if chosen_timestamp is None:
@@ -119,7 +126,7 @@ def execute_retry(transaction_id: str, attempt_number: int):
     try:
         transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
         retry_attempt = db.query(RetryAttempt).filter(
-            RetryAttempt.transaction_id == transaction_id, 
+            RetryAttempt.transaction_id == transaction_id,
             RetryAttempt.attempt_number == attempt_number
         ).first()
 
@@ -136,34 +143,41 @@ def execute_retry(transaction_id: str, attempt_number: int):
         retry_attempt.executed_timestamp = datetime.now()
 
         # Recompute the ground-truth outcome
-        hours_since_failure = (retry_attempt.scheduled_timestamp - transaction.original_timestamp).total_seconds() / 3600
-        retry_day_of_month = retry_attempt.scheduled_timestamp.day
+        with tracer.start_as_current_span("retry_outcome_simulation") as span:
+            hours_since_failure = (retry_attempt.scheduled_timestamp - transaction.original_timestamp).total_seconds() / 3600
+            retry_day_of_month = retry_attempt.scheduled_timestamp.day
 
-        base_success_prob = {
-            "insufficient_funds": 0.35,
-            "bank_server_timeout": 0.70,
-            "invalid_upi_pin": 0.45,
-        }.get(transaction.failure_reason, 0.0)
+            base_success_prob = {
+                "insufficient_funds": 0.35,
+                "bank_server_timeout": 0.70,
+                "invalid_upi_pin": 0.45,
+            }.get(transaction.failure_reason, 0.0)
 
-        prob = base_success_prob
+            prob = base_success_prob
 
-        if transaction.failure_reason == "insufficient_funds":
-            if retry_day_of_month in [1, 2, 3, 28, 29, 30, 31]:
-                prob *= 1.6
-            if hours_since_failure < 6:
-                prob *= 0.5
+            if transaction.failure_reason == "insufficient_funds":
+                if retry_day_of_month in [1, 2, 3, 28, 29, 30, 31]:
+                    prob *= 1.6
+                if hours_since_failure < 6:
+                    prob *= 0.5
 
-        if transaction.failure_reason == "bank_server_timeout":
-            if hours_since_failure < 2:
-                prob *= 1.3
-            if hours_since_failure > 48:
-                prob *= 0.8
+            if transaction.failure_reason == "bank_server_timeout":
+                if hours_since_failure < 2:
+                    prob *= 1.3
+                if hours_since_failure > 48:
+                    prob *= 0.8
 
-        prob *= (0.85 ** (attempt_number - 1))
-        prob = prob + random.gauss(0, 0.05)
-        prob = max(0, min(1, prob))
+            prob *= (0.85 ** (attempt_number - 1))
+            prob = prob + random.gauss(0, 0.05)
+            prob = max(0, min(1, prob))
 
-        outcome = "success" if random.random() < prob else "failed"
+            outcome = "success" if random.random() < prob else "failed"
+
+            span.set_attribute("outcome", outcome)
+            span.set_attribute("true_probability", float(prob))
+            span.set_attribute("attempt_number", attempt_number)
+            span.set_attribute("failure_reason", transaction.failure_reason or "unknown")
+
         logger.info(f"[{transaction_id}] Retry #{attempt_number} outcome: {outcome} (True prob was {prob:.2%})")
 
         # Save outcome
@@ -191,19 +205,19 @@ def generate_dunning_message(transaction_id: str, reason: str):
     Generates a context-aware dunning communication to send to the user.
     """
     from app.dunning.templates import generate_message
-    
+
     logger.info(f"[{transaction_id}] Generating dunning message for reason: '{reason}'")
     db = SessionLocal()
     try:
         transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
-        
+
         if not transaction:
             logger.error(f"[{transaction_id}] Transaction not found for dunning message generation.")
             return
 
         scheduled_retry_time = None
         retryable_reasons = ["insufficient_funds", "bank_server_timeout", "invalid_upi_pin"]
-        
+
         if reason in retryable_reasons:
             # Look up the latest retry attempt to get its scheduled time
             latest_retry = (
@@ -222,7 +236,7 @@ def generate_dunning_message(transaction_id: str, reason: str):
             amount_inr=transaction.amount_inr,
             scheduled_retry_time=scheduled_retry_time
         )
-        
+
         dunning_msg = DunningMessage(
             transaction_id=transaction_id,
             message_text=message_text,
