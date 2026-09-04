@@ -8,9 +8,10 @@ import warnings
 # Suppress sklearn/pandas alignment warnings during prediction
 warnings.filterwarnings('ignore')
 
-# Load models at the module level
-MODEL_PATH = "model.pkl" if os.path.exists("model.pkl") else "ml/model.pkl"
-FEATURES_PATH = "feature_columns.pkl" if os.path.exists("feature_columns.pkl") else "ml/feature_columns.pkl"
+# Load models at the module level using absolute paths relative to this file
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(_THIS_DIR, "model.pkl")
+FEATURES_PATH = os.path.join(_THIS_DIR, "feature_columns.pkl")
 
 try:
     MODEL = joblib.load(MODEL_PATH)
@@ -50,16 +51,28 @@ def choose_best_retry(
     if failure_reason in ["card_expired", "card_lost_stolen", "issuer_decline_risk"]:
         return (None, None, []) if return_details else (None, None)
         
+    # Ensure candidates are scheduled into the future from when this function is actually called
+    anchor_time = max(original_failure_timestamp, datetime.now())
+        
+    # Start with the standard 4 candidate times relative to the anchor_time
     candidate_timestamps = [
-        original_failure_timestamp + timedelta(hours=2),
-        original_failure_timestamp + timedelta(hours=6),
-        original_failure_timestamp + timedelta(hours=24),
-        original_failure_timestamp + timedelta(hours=72),
-        _get_next_month_boundary(original_failure_timestamp)
+        anchor_time + timedelta(hours=2),
+        anchor_time + timedelta(hours=6),
+        anchor_time + timedelta(hours=24),
+        anchor_time + timedelta(hours=72)
     ]
+    candidate_labels = ["+2h", "+6h", "+24h", "+72h"]
+    
+    # Exclude the "next month boundary" strategy for technical/timeout errors 
+    # where day-of-month timing has no semantic relationship to recovery.
+    if failure_reason not in ("bank_server_timeout", "invalid_upi_pin"):
+        candidate_timestamps.append(_get_next_month_boundary(anchor_time))
+        candidate_labels.append("Next Month Boundary")
     
     candidates_data = []
     for cand_ts in candidate_timestamps:
+        # Note: The ML model feature must still calculate total elapsed time from the ORIGINAL failure, 
+        # not the anchor time, so we keep original_failure_timestamp here.
         hours_diff = (cand_ts - original_failure_timestamp).total_seconds() / 3600.0
         day_of_month = cand_ts.day
         is_near_boundary = int(day_of_month in [1, 2, 3, 28, 29, 30, 31])
@@ -90,8 +103,7 @@ def choose_best_retry(
     best_prob = float(probs[best_idx])
     
     if return_details:
-        labels = ["+2h", "+6h", "+24h", "+72h", "Next Month Boundary"]
-        details = list(zip(labels, candidate_timestamps, probs))
+        details = list(zip(candidate_labels, candidate_timestamps, probs))
         return best_timestamp, best_prob, details
         
     return best_timestamp, best_prob

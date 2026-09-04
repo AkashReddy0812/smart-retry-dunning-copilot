@@ -190,11 +190,38 @@ def generate_dunning_message(transaction_id: str, reason: str):
     """
     Generates a context-aware dunning communication to send to the user.
     """
+    from app.dunning.templates import generate_message
+    
     logger.info(f"[{transaction_id}] Generating dunning message for reason: '{reason}'")
     db = SessionLocal()
     try:
-        # MVP placeholder — replaced by app/dunning/templates.py on Day 4
-        message_text = f"[Placeholder message for reason: {reason}]"
+        transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+        
+        if not transaction:
+            logger.error(f"[{transaction_id}] Transaction not found for dunning message generation.")
+            return
+
+        scheduled_retry_time = None
+        retryable_reasons = ["insufficient_funds", "bank_server_timeout", "invalid_upi_pin"]
+        
+        if reason in retryable_reasons:
+            # Look up the latest retry attempt to get its scheduled time
+            latest_retry = (
+                db.query(RetryAttempt)
+                .filter(RetryAttempt.transaction_id == transaction_id)
+                .order_by(RetryAttempt.attempt_number.desc())
+                .first()
+            )
+            if latest_retry and latest_retry.scheduled_timestamp:
+                scheduled_retry_time = latest_retry.scheduled_timestamp
+
+        # Generate the dynamic template text
+        message_text = generate_message(
+            failure_reason=reason,
+            transaction_type=transaction.transaction_type,
+            amount_inr=transaction.amount_inr,
+            scheduled_retry_time=scheduled_retry_time
+        )
         
         dunning_msg = DunningMessage(
             transaction_id=transaction_id,
