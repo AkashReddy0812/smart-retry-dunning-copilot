@@ -1,8 +1,9 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.db import init_db
-from app.routers import simulate, dashboard, transactions
+from app.routers import simulate, dashboard, transactions, debug
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,10 +18,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Include Routers
+# Include Routers (must come before the static mount to avoid conflicts)
 app.include_router(simulate.router)
 app.include_router(dashboard.router)
 app.include_router(transactions.router)
+app.include_router(debug.router)
+
+# Mount the frontend dashboard
+app.mount("/dashboard", StaticFiles(directory="dashboard", html=True), name="dashboard")
 
 @app.get("/")
 def health_check():

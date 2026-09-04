@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+import os
+import json
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -11,16 +13,13 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 def get_dashboard_summary(db: Session = Depends(get_db)):
     total_count = db.query(Transaction).count()
     
-    # Query count of transactions grouped by their current_status
     status_counts_query = db.query(
         Transaction.current_status, 
         func.count(Transaction.id)
     ).group_by(Transaction.current_status).all()
     
-    # Convert query result to dict
     status_counts = {status: count for status, count in status_counts_query}
     
-    # Ensure all required keys exist
     for status in ["failed", "retrying", "recovered", "lost", "skipped_non_retryable"]:
         if status not in status_counts:
             status_counts[status] = 0
@@ -30,9 +29,23 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         "status_counts": status_counts
     }
 
+@router.get("/comparison")
+def get_baseline_comparison():
+    # Resolve the absolute path to ml/baseline_comparison.json
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    json_path = os.path.join(base_dir, "ml", "baseline_comparison.json")
+    
+    if not os.path.exists(json_path):
+        raise HTTPException(
+            status_code=404, 
+            detail="baseline_comparison.json not found. Did you run evaluate_model.py?"
+        )
+        
+    with open(json_path, "r") as f:
+        return json.load(f)
+
 @router.get("/queue/live")
 def get_live_queue(db: Session = Depends(get_db)):
-    # Find retry attempts that haven't been executed yet, joining with Transaction for context
     pending_retries = (
         db.query(RetryAttempt, Transaction)
         .join(Transaction)

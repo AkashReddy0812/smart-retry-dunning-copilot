@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Retry & Dunning Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Recovery Strategy Dashboard</h1>
+        </header>
+
+        <!-- SECTION 1: HEADLINE COMPARISON -->
+        <section class="card">
+            <h2>Baseline vs. ML Strategy</h2>
+            <div class="charts-wrapper">
+                <div class="chart-container">
+                    <canvas id="rateChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <canvas id="revChart"></canvas>
+                </div>
+            </div>
+            <div id="lift-metrics" class="lift-metrics">
+                <!-- Injected via JS -->
+            </div>
+        </section>
+
+        <!-- SECTION 2: LIVE RETRY QUEUE -->
+        <section class="card">
+            <div class="section-header">
+                <h2>Live Retry Queue</h2>
+                <button id="refresh-queue" class="btn">Refresh Queue</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Transaction ID</th>
+                            <th>Reason</th>
+                            <th>Attempt #</th>
+                            <th>Scheduled Time</th>
+                            <th>Predicted Prob.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queue-body">
+                        <tr><td colspan="5">Loading queue...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- SECTION 3: TRANSACTION DEEP-DIVE -->
+        <section class="card">
+            <h2>Transaction Deep-Dive</h2>
+            <div class="search-bar">
+                <input type="text" id="tx-input" placeholder="Enter Transaction ID (e.g., test-txn-006)">
+                <button id="lookup-btn" class="btn btn-primary">Look Up</button>
+            </div>
+            
+            <div id="tx-result" class="tx-result hidden">
+                <div class="tx-header">
+                    <h3>Transaction Details</h3>
+                    <div id="tx-meta" class="tx-meta-grid"></div>
+                </div>
+                
+                <div class="timeline-container">
+                    <h3>Recovery Timeline</h3>
+                    <div id="tx-timeline" class="timeline">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+:root {
+    --bg-color: #f3f4f6;
+    --card-bg: #ffffff;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --border-color: #e5e7eb;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --success: #10b981;
+    --danger: #ef4444;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    margin: 0;
+    padding: 2rem;
+    line-height: 1.5;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+h1, h2, h3 {
+    margin-top: 0;
+    color: #111827;
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+}
+
+/* Charts & Stats */
+.charts-wrapper {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    height: 250px;
+}
+
+.chart-container {
+    flex: 1;
+    position: relative;
+}
+
+.lift-metrics {
+    display: flex;
+    gap: 1rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.5rem;
+}
+
+.metric-box {
+    flex: 1;
+    text-align: center;
+    padding: 1rem;
+    border-radius: 6px;
+    background: #f9fafb;
+}
+
+.metric-box.highlight {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Buttons & Inputs */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.search-bar {
+    display: flex;
+    gap: 0.5rem;
+}
+
+input[type="text"] {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background: white;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn:hover { background: #f9fafb; }
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.btn-primary:hover { background: var(--primary-hover); }
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+th { background: #f9fafb; color: var(--text-muted); }
+
+.badge {
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* Deep Dive Result */
+.hidden { display: none; }
+
+.tx-header {
+    background: #f9fafb;
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1.5rem 0;
+}
+
+.tx-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.status-recovered { color: var(--success); font-weight: bold; }
+.status-failed, .status-lost { color: var(--danger); font-weight: bold; }
+.status-retrying { color: #d97706; font-weight: bold; }
+
+/* Timeline */
+.timeline {
+    border-left: 2px solid var(--border-color);
+    margin-left: 1rem;
+    padding-left: 1.5rem;
+}
+
+.timeline-event {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.timeline-point {
+    position: absolute;
+    left: -1.95rem;
+    top: 0.25rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #d1d5db;
+    border: 2px solid white;
+}
+
+.point-failure { background: var(--danger); }
+.point-success { background: var(--success); }
+.point-schedule { background: var(--primary); }
+.point-email { background: #8b5cf6; }
+
+.timeline-date {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.timeline-body {
+    background: #f9fafb;
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-color);
+}
+
+.email-msg {
+    margin-top: 0.5rem;
+    font-style: italic;
+    color: var(--text-muted);
+}
